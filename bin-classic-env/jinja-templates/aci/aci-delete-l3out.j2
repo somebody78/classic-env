@@ -1,0 +1,17 @@
+{
+	"fvTenant": {
+		"attributes": {
+			"dn": "uni/tn-{{item.tenant}}",
+			"status": "modified"
+		},
+		"children": [{
+			"l3extOut": {
+				"attributes": {
+					"dn": "uni/tn-{{item.tenant}}/out-to_{{gv_general.firewalls[general.fw].shortname}}-{{gv_srx.ri_prefix+srx.ri_id}}_l3o",
+					"status": "deleted"
+				},
+				"children": []
+			}
+		}]
+	}
+}

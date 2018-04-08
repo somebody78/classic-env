@@ -1,0 +1,434 @@
+{
+    "l3extOut": {
+        "attributes": {
+            "descr": "l3out to {{gv_general.firewalls[general.fw].shortname}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+            "dn": "uni/tn-{{item.tenant}}/out-to_{{gv_general.firewalls[general.fw].shortname}}-{{gv_srx.ri_prefix+srx.ri_id}}_l3o",
+            "enforceRtctrl": "export",
+            "name": "to_{{gv_general.firewalls[general.fw].shortname}}-{{gv_srx.ri_prefix+srx.ri_id}}_l3o",
+            "nameAlias": "",
+            "ownerKey": "",
+            "ownerTag": "",
+            "targetDscp": "unspecified",
+            "status": "created"
+        },
+        "children": [{
+            "l3extRsL3DomAtt": {
+                "attributes": {
+                    "tDn": "uni/l3dom-{{item.domain}}"
+                }
+            }
+        },
+        {
+            "l3extRsEctx": {
+                "attributes": {
+                    "tnFvCtxName": "{{item.vrf}}"
+                }
+            }
+        },
+        {
+            "l3extLNodeP": {
+                "attributes": {
+                    "configIssues": "",
+                    "descr": "Logical node profile to {{gv_general.firewalls[general.fw].aci_nodes[0].name}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+                    "name": "to_{{gv_general.firewalls[general.fw].aci_nodes[0].name}}-{{gv_srx.ri_prefix+srx.ri_id}}_lnpr",
+                    "nameAlias": "",
+                    "ownerKey": "",
+                    "ownerTag": "",
+                    "tag": "yellow-green",
+                    "targetDscp": "unspecified"
+                },
+                "children": [{
+                    "l3extRsNodeL3OutAtt": {
+                        "attributes": {
+                            "rtrId": "{{item.routerid_leaf_1}}",
+                            "rtrIdLoopBack": "no",
+                            "tDn": "{{gv_general.firewalls[general.fw].aci_nodes[0].leafs[0]}}"
+                        },
+                        "children": [{
+                            "l3extInfraNodeP": {
+                                "attributes": {
+                                    "descr": "",
+                                    "fabricExtCtrlPeering": "no",
+                                    "fabricExtIntersiteCtrlPeering": "no",
+                                    "name": "",
+                                    "nameAlias": "",
+                                    "spineRole": ""
+                                }
+                            }
+                        }]
+                    }
+                },
+                {
+                    "l3extRsNodeL3OutAtt": {
+                        "attributes": {
+                            "rtrId": "{{item.routerid_leaf_2}}",
+                            "rtrIdLoopBack": "no",
+                            "tDn": "{{gv_general.firewalls[general.fw].aci_nodes[0].leafs[1]}}"
+                        },
+                        "children": [{
+                            "l3extInfraNodeP": {
+                                "attributes": {
+                                    "descr": "",
+                                    "fabricExtCtrlPeering": "no",
+                                    "fabricExtIntersiteCtrlPeering": "no",
+                                    "name": "",
+                                    "nameAlias": "",
+                                    "spineRole": ""
+                                }
+                            }
+                        }]
+                    }
+                },
+                {
+                    "l3extLIfP": {
+                        "attributes": {
+                            "descr": "Logical interface profile to {{gv_general.firewalls[general.fw].aci_nodes[0].name}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+                            "name": "to_{{gv_general.firewalls[general.fw].aci_nodes[0].name}}-{{gv_srx.ri_prefix+srx.ri_id}}_lipr",
+                            "nameAlias": "",
+                            "ownerKey": "",
+                            "ownerTag": "",
+                            "tag": "yellow-green"
+                        },
+                        "children": [{
+                            "l3extRsPathL3OutAtt": {
+                                "attributes": {
+                                    "addr": "0.0.0.0",
+                                    "descr": "{{gv_general.firewalls[general.fw].aci_nodes[0].name}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+                                    "encap": "vlan-{{item.vlan_id}}",
+                                    "encapScope": "local",
+                                    "ifInstT": "ext-svi",
+                                    "llAddr": "0.0.0.0",
+                                    "mac": "00:22:BD:F8:19:FF",
+                                    "mode": "regular",
+                                    "mtu": "1500",
+                                    "tDn": "{{gv_general.firewalls[general.fw].aci_nodes[0].aci_portpath}}",
+                                    "targetDscp": "unspecified"
+                                },
+                                "children": [{
+                                    "l3extMember": {
+                                        "attributes": {
+                                            "addr": "{{item.koppel_ip_leaf_1+item.koppel_cidr}}",
+                                            "descr": "",
+                                            "llAddr": "0.0.0.0",
+                                            "name": "",
+                                            "nameAlias": "",
+                                            "side": "A"
+                                        }
+                                    }
+                                },
+                                {
+                                    "l3extMember": {
+                                        "attributes": {
+                                            "addr": "{{item.koppel_ip_leaf_2+item.koppel_cidr}}",
+                                            "descr": "",
+                                            "llAddr": "0.0.0.0",
+                                            "name": "",
+                                            "nameAlias": "",
+                                            "side": "B"
+                                        }
+                                    }
+                                },
+                                {
+                                    "bgpPeerP": {
+                                        "attributes": {
+                                            "addr": "{{item.koppel_ip_fw}}",
+                                            "allowedSelfAsCnt": "3",
+                                            "ctrl": "",
+                                            "descr": "",
+                                            "name": "",
+                                            "nameAlias": "",
+                                            "peerCtrl": "",
+                                            "privateASctrl": "",
+                                            "ttl": "1",
+                                            "weight": "0"
+                                        },
+                                        "children": [{
+                                            "bgpRsPeerPfxPol": {
+                                                "attributes": {
+                                                    "tnBgpPeerPfxPolName": ""
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "bgpLocalAsnP": {
+                                                "attributes": {
+                                                    "asnPropagate": "none",
+                                                    "descr": "",
+                                                    "localAsn": "{{item.as_number_aci}}",
+                                                    "name": "",
+                                                    "nameAlias": ""
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "bgpAsP": {
+                                                "attributes": {
+                                                    "asn": "{{item.as_number_fw}}",
+                                                    "descr": "",
+                                                    "name": "",
+                                                    "nameAlias": ""
+                                                }
+                                            }
+                                        }]
+                                    }
+                                }]
+                            }
+                        },
+                        {
+                            "l3extRsNdIfPol": {
+                                "attributes": {
+                                    "tnNdIfPolName": ""
+                                }
+                            }
+                        },
+                        {
+                            "l3extRsIngressQosDppPol": {
+                                "attributes": {
+                                    "tnQosDppPolName": ""
+                                }
+                            }
+                        },
+                        {
+                            "l3extRsEgressQosDppPol": {
+                                "attributes": {
+                                    "tnQosDppPolName": ""
+                                }
+                            }
+                        }]
+                    }
+                }]
+            }
+        },
+        {
+            "l3extLNodeP": {
+                "attributes": {
+                    "configIssues": "",
+                    "descr": "Logical node profile to {{gv_general.firewalls[general.fw].aci_nodes[1].name}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+                    "name": "to_{{gv_general.firewalls[general.fw].aci_nodes[1].name}}-{{gv_srx.ri_prefix+srx.ri_id}}_lnpr",
+                    "nameAlias": "",
+                    "ownerKey": "",
+                    "ownerTag": "",
+                    "tag": "yellow-green",
+                    "targetDscp": "unspecified"
+                },
+                "children": [{
+                    "l3extRsNodeL3OutAtt": {
+                        "attributes": {
+                            "rtrId": "{{item.routerid_leaf_3}}",
+                            "rtrIdLoopBack": "no",
+                            "tDn": "{{gv_general.firewalls[general.fw].aci_nodes[1].leafs[0]}}"
+                        },
+                        "children": [{
+                            "l3extInfraNodeP": {
+                                "attributes": {
+                                    "descr": "",
+                                    "fabricExtCtrlPeering": "no",
+                                    "fabricExtIntersiteCtrlPeering": "no",
+                                    "name": "",
+                                    "nameAlias": "",
+                                    "spineRole": ""
+                                }
+                            }
+                        }]
+                    }
+                },
+                {
+                    "l3extRsNodeL3OutAtt": {
+                        "attributes": {
+                            "rtrId": "{{item.routerid_leaf_4}}",
+                            "rtrIdLoopBack": "no",
+                            "tDn": "{{gv_general.firewalls[general.fw].aci_nodes[1].leafs[1]}}"
+                        },
+                        "children": [{
+                            "l3extInfraNodeP": {
+                                "attributes": {
+                                    "descr": "",
+                                    "fabricExtCtrlPeering": "no",
+                                    "fabricExtIntersiteCtrlPeering": "no",
+                                    "name": "",
+                                    "nameAlias": "",
+                                    "spineRole": ""
+                                }
+                            }
+                        }]
+                    }
+                },
+                {
+                    "l3extLIfP": {
+                        "attributes": {
+                            "descr": "Logical interface profile to {{gv_general.firewalls[general.fw].aci_nodes[1].name}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+                            "name": "to_{{gv_general.firewalls[general.fw].aci_nodes[1].name}}-{{gv_srx.ri_prefix+srx.ri_id}}_lipr",
+                            "nameAlias": "",
+                            "ownerKey": "",
+                            "ownerTag": "",
+                            "tag": "yellow-green"
+                        },
+                        "children": [{
+                            "l3extRsPathL3OutAtt": {
+                                "attributes": {
+                                    "addr": "0.0.0.0",
+                                    "descr": "{{gv_general.firewalls[general.fw].aci_nodes[1].name}}-{{gv_srx.ri_prefix+srx.ri_id}}",
+                                    "encap": "vlan-{{item.vlan_id}}",
+                                    "encapScope": "local",
+                                    "ifInstT": "ext-svi",
+                                    "llAddr": "0.0.0.0",
+                                    "mac": "00:22:BD:F8:19:FF",
+                                    "mode": "regular",
+                                    "mtu": "1500",
+                                    "tDn": "{{gv_general.firewalls[general.fw].aci_nodes[1].aci_portpath}}",
+                                    "targetDscp": "unspecified"
+                                },
+                                "children": [{
+                                    "l3extMember": {
+                                        "attributes": {
+                                            "addr": "{{item.koppel_ip_leaf_3+item.koppel_cidr}}",
+                                            "descr": "",
+                                            "llAddr": "0.0.0.0",
+                                            "name": "",
+                                            "nameAlias": "",
+                                            "side": "A"
+                                        }
+                                    }
+                                },
+                                {
+                                    "l3extMember": {
+                                        "attributes": {
+                                            "addr": "{{item.koppel_ip_leaf_4+item.koppel_cidr}}",
+                                            "descr": "",
+                                            "llAddr": "0.0.0.0",
+                                            "name": "",
+                                            "nameAlias": "",
+                                            "side": "B"
+                                        }
+                                    }
+                                },
+                                {
+                                    "bgpPeerP": {
+                                        "attributes": {
+                                            "addr": "{{item.koppel_ip_fw}}",
+                                            "allowedSelfAsCnt": "3",
+                                            "ctrl": "",
+                                            "descr": "",
+                                            "name": "",
+                                            "nameAlias": "",
+                                            "peerCtrl": "",
+                                            "privateASctrl": "",
+                                            "ttl": "1",
+                                            "weight": "0"
+                                        },
+                                        "children": [{
+                                            "bgpRsPeerPfxPol": {
+                                                "attributes": {
+                                                    "tnBgpPeerPfxPolName": ""
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "bgpLocalAsnP": {
+                                                "attributes": {
+                                                    "asnPropagate": "none",
+                                                    "descr": "",
+                                                    "localAsn": "{{item.as_number_aci}}",
+                                                    "name": "",
+                                                    "nameAlias": ""
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "bgpAsP": {
+                                                "attributes": {
+                                                    "asn": "{{item.as_number_fw}}",
+                                                    "descr": "",
+                                                    "name": "",
+                                                    "nameAlias": ""
+                                                }
+                                            }
+                                        }]
+                                    }
+                                }]
+                            }
+                        },
+                        {
+                            "l3extRsNdIfPol": {
+                                "attributes": {
+                                    "tnNdIfPolName": ""
+                                }
+                            }
+                        },
+                        {
+                            "l3extRsIngressQosDppPol": {
+                                "attributes": {
+                                    "tnQosDppPolName": ""
+                                }
+                            }
+                        },
+                        {
+                            "l3extRsEgressQosDppPol": {
+                                "attributes": {
+                                    "tnQosDppPolName": ""
+                                }
+                            }
+                        }]
+                    }
+                }]
+            }
+        },
+        {
+            "l3extInstP": {
+                "attributes": {
+                    "descr": "External EPG",
+                    "matchT": "AtleastOne",
+                    "name": "ext_ntwk",
+                    "nameAlias": "",
+                    "prefGrMemb": "exclude",
+                    "prio": "unspecified",
+                    "targetDscp": "unspecified"
+                },
+                "children": [{
+                    "fvRsProv": {
+                        "attributes": {
+                            "matchT": "AtleastOne",
+                            "prio": "unspecified",
+                            "tnVzBrCPName": "any_cont"
+                        }
+                    }
+                },
+                {
+                    "l3extSubnet": {
+                        "attributes": {
+                            "aggregate": "export-rtctrl",
+                            "descr": "",
+                            "ip": "0.0.0.0/0",
+                            "name": "",
+                            "nameAlias": "",
+                            "scope": "export-rtctrl,import-security"
+                        }
+                    }
+                },
+                {
+                    "fvRsCustQosPol": {
+                        "attributes": {
+                            "tnQosCustomPolName": ""
+                        }
+                    }
+                },
+                {
+                    "fvRsCons": {
+                        "attributes": {
+                            "prio": "unspecified",
+                            "tnVzBrCPName": "any_cont"
+                        }
+                    }
+                }]
+            }
+        },
+        {
+            "bgpExtP": {
+                "attributes": {
+                    "descr": "",
+                    "nameAlias": ""
+                }
+            }
+        }]
+    }
+}

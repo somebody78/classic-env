@@ -1,0 +1,78 @@
+---
+# Playbook to create generic templates
+# Variable are pulled from a file in ./var-files
+#
+
+- name: Ansible generic configs
+  vars_files:
+    - ~/.vars-aci-credentials.yml
+    - "{{ varfile }}"
+  hosts: "{{ aci_env }}"
+
+  connection: local
+  gather_facts: no
+
+  vars:
+    playbook_version: '1.0'
+
+  tasks:
+  #
+  # Compare playbook_version and input_vars_version
+  #
+  - name: 'Check input_vars_version' 
+    fail: msg="playbook_version and input_vars_version do not match. Maybe you used the wrong template file?"
+    when: playbook_version != input_vars_version
+    
+  #
+  # Prepare ACI L3Out JSON configs
+  # Loop over bgps list
+  #
+  - name: Prepare JSON config for ACI L3Outs
+    template:
+      src: jinja-templates/aci/aci-delete-l3out.j2
+      dest: ../data-classic-env/output-files/aci-delete-l3out-{{item.type}}.json
+    with_items: "{{ bgps|default([]) }}"
+    # no_log: true
+
+  # Submit JSON config for L3Out to ACI REST ##
+  # Same loop as in preparing the config files
+  - name: Submit JSON config to delete L3Out
+    aci_rest:
+      path: "api/node/mo/uni/tn-{{item.tenant}}.json"
+      method: post
+      src: ../data-classic-env/output-files/aci-delete-l3out-{{item.type}}.json
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ apic_user }}"
+      password: "{{ apic_pass }}"
+      use_proxy: no
+      validate_certs: no
+    with_items: "{{ bgps|default([]) }}"
+    register: out
+
+  #
+  # Delete L3Out json files for L3Outs ################################################################################################################
+  #
+  - name: Delete L3Out JSON file 
+    file:
+      path: ../data-classic-env/output-files/aci-delete-l3out-{{item.type}}.json
+      state: absent
+    with_items: "{{ bgps|default([]) }}"
+    # no_log: true
+
+  #
+  # delete tenant
+  #
+  - name: Delete a tenant in ACI
+    aci_tenant: 
+      tenant="{{ aci.tenant_name }}"
+      description="{{ aci.tenant_desc }}"
+      state=absent
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    no_log: true
+
+# This is the end, my friend
+...

@@ -1,0 +1,220 @@
+#jinja2: lstrip_blocks: True
+{# SRX base config, version 0.1 #}
+!!
+!!!!!!!!! Copy paste config for {{general.fw}}, {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}
+!!
+!!!!!!!!! Show commands to make sure nothing gets overwritten
+!!
+show configuration routing-instance {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}
+{% for item in networks|default([]) %}
+  {% if 'fw' in item.devices %}
+show interfaces {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}}
+  {% endif %}
+{% endfor %}
+{% for item in bgps|default([]) %}
+show interfaces {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}}
+{% endfor %}
+
+
+!!!!!!!!! Bandwidth policer and filter
+!!
+set firewall policer {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-policer if-exceeding bandwidth-limit {{srx.bandwidth_limit}}
+set firewall policer {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-policer if-exceeding burst-size-limit {{srx.burst_limit}}
+set firewall policer {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-policer then discard
+set firewall family inet filter {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-filter term 1 from source-address 0.0.0.0/0
+set firewall family inet filter {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-filter term 1 then policer {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-policer
+
+!!!!!!!!! Interfaces
+!!
+{% for item in bgps|default([]) %}
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} description "Tenant:{{item.tenant}} VRF:{{item.vrf}}"
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} vlan-id {{item.vlan_id}}
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} family inet filter input {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-filter
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} family inet address {{item.koppel_ip_fw+item.koppel_cidr}}
+{% endfor %}
+{% for item in networks|default([]) %}
+  {% if 'fw' in item.devices %}
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} description "Tenant:{{aci.tenant_name}} BD:{{item.name+gv_aci.bd_suffix}} AP:{{item.ap}} EPG:{{item.name+gv_aci.epg_suffix}}"
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} vlan-id {{item.vlan_id}}
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} family inet filter input {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-filter
+set interfaces {{gv_general.firewalls[general.fw].dialog_intf}} unit {{item.vlan_id}} family inet address {{item.ip_fw}}/{{item.ip_cidr}}
+  {% endif %}
+{% endfor %}
+
+!!!!!!!!! BGP import and export filter
+!!
+{% for item in bgps|default([]) %}
+  {% if item.type == 'internet' %}
+    {% for range in general.ip_ranges.internet %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-export {{range}}
+    {% endfor %}
+    {% for range in gv_general.ip_ranges.internet %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-import {{range}}
+    {% endfor %}
+  {% endif%}
+  {% if item.type == 'admin' %}
+    {% for range in general.ip_ranges.internal %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-export {{range}}
+    {% endfor %}
+    {% for range in gv_general.ip_ranges.admin_psa %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-import {{range}}
+    {% endfor %}
+  {% endif%}
+  {% if item.type == 'fusion' %}
+    {% for range in general.ip_ranges.internal %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-export {{range}}
+    {% endfor %}
+    {% for range in gv_general.ip_ranges.fusion %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-import {{range}}
+    {% endfor %}
+  {% endif%}
+  {% if item.type == 'transfer' %}
+    {% for range in general.ip_ranges.internal %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-export {{range}}
+    {% endfor %}
+    {% for range in gv_general.ip_ranges.transfer %}
+set policy-options prefix-list pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone }}-import {{range}}
+    {% endfor %}
+  {% endif%}
+{% endfor %}
+
+{% for item in bgps|default([]) %}
+  {% if item.type == 'internet' %}
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 2 then reject
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import exact
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 2 then reject
+  {% endif%}
+  {% if item.type == 'admin' %}
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 2 then reject
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 2 then reject
+  {% endif%}
+  {% if item.type == 'fusion' %}
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 2 then reject
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 2 then reject
+  {% endif%}
+  {% if item.type == 'transfer' %}
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export term 2 then reject
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 from prefix-list-filter pl-{{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import orlonger
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 1 then accept
+set policy-options policy-statement {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import term 2 then reject
+  {% endif%}
+{% endfor %}
+
+!!!!!!!!! Zones
+!!
+{% for item in bgps|default([]) %}
+  {% if item.type != 'internet' %}
+set security zones security-zone {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} host-inbound-traffic system-services ping
+set security zones security-zone {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} host-inbound-traffic system-services traceroute
+  {% endif %}
+set security zones security-zone {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} interfaces {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}}
+{% endfor %}
+{% for item in networks|default([]) %}
+  {% if 'fw' in item.devices %}
+set security zones security-zone {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} host-inbound-traffic system-services ping
+set security zones security-zone {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} host-inbound-traffic system-services traceroute
+set security zones security-zone {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} interfaces {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}}
+  {% endif %}
+{% endfor %}
+
+!!!!!!!!! Routing instance {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}
+!!
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} description "Tenant:{{aci.tenant_name}} Doku:{{general.doku}}"
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} instance-type virtual-router
+{% for item in bgps|default([]) %}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} interface {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}}
+{% endfor %}
+{% for item in networks|default([]) %}
+  {% if 'fw' in item.devices %}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} interface {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}}
+  {% endif %}
+{% endfor %}
+
+!!!!!!!!! Static routes and discard routes
+!!
+{% for range in general.ip_ranges.internet|default([]) %}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route {{range}} discard
+{% endfor %}
+{% for item in srx.static_routes|default([]) %}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route {{item.prefix}} next-hop {{item.nexthop}}
+{% endfor %}
+
+{% for item in bgps|default([]) %}
+  {% if item.type == 'fusion' %}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 10.0.0.0/8 next-hop {{ item.koppel_ip_leaf_1 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 10.0.0.0/8 qualified-next-hop {{ item.koppel_ip_leaf_2 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 10.0.0.0/8 qualified-next-hop {{ item.koppel_ip_leaf_3 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 10.0.0.0/8 qualified-next-hop {{ item.koppel_ip_leaf_4 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.16/29 next-hop {{ item.koppel_ip_leaf_1 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.16/29 qualified-next-hop {{ item.koppel_ip_leaf_2 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.16/29 qualified-next-hop {{ item.koppel_ip_leaf_3 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.16/29 qualified-next-hop {{ item.koppel_ip_leaf_4 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.24/29 next-hop {{ item.koppel_ip_leaf_1 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.24/29 qualified-next-hop {{ item.koppel_ip_leaf_2 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.24/29 qualified-next-hop {{ item.koppel_ip_leaf_3 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 84.17.182.24/29 qualified-next-hop {{ item.koppel_ip_leaf_4 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 172.16.0.0/12 next-hop {{ item.koppel_ip_leaf_1 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 172.16.0.0/12 qualified-next-hop {{ item.koppel_ip_leaf_2 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 172.16.0.0/12 qualified-next-hop {{ item.koppel_ip_leaf_3 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 172.16.0.0/12 qualified-next-hop {{ item.koppel_ip_leaf_4 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 145.228.0.0/16 next-hop {{ item.koppel_ip_leaf_1 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 145.228.0.0/16 qualified-next-hop {{ item.koppel_ip_leaf_2 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 145.228.0.0/16 qualified-next-hop {{ item.koppel_ip_leaf_3 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 145.228.0.0/16 qualified-next-hop {{ item.koppel_ip_leaf_4 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 192.168.0.0/16 next-hop {{ item.koppel_ip_leaf_1 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 192.168.0.0/16 qualified-next-hop {{ item.koppel_ip_leaf_2 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 192.168.0.0/16 qualified-next-hop {{ item.koppel_ip_leaf_3 }}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options static route 192.168.0.0/16 qualified-next-hop {{ item.koppel_ip_leaf_4 }}
+  {% endif %}
+{% endfor %}
+
+!!!!!!!!! BGP general settings
+!!
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options graceful-restart
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options router-id {{srx.bgp_routerid}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} routing-options autonomous-system {{srx.bgp_as}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp hold-time 30
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp graceful-restart
+
+!!!!!!!!! BGP peers
+!!
+{% for item in bgps|default([]) %}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers advertise-peer-as
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers import {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-import
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers export {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-export
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers peer-as {{item.as_number_aci}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers local-as {{item.as_number_fw}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers graceful-restart
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers neighbor {{item.koppel_ip_leaf_1}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers neighbor {{item.koppel_ip_leaf_2}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers neighbor {{item.koppel_ip_leaf_3}}
+set routing-instances {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}} protocols bgp group {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}}-peers neighbor {{item.koppel_ip_leaf_4}}
+{% endfor %}
+
+!!!!!!!!! Show Befehle zur Kontrolle
+!!
+show bgp summary instance {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}
+show route table {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}.inet.0
+show interfaces terse routing-instance {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}
+show security zones vs001-back00 terse
+{% for item in networks|default([]) %}
+  {% if 'fw' in item.devices %}
+show security zones {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} terse
+  {% endif %}
+{% endfor %}
+{% for item in bgps|default([]) %}
+show security zones {{gv_srx.ri_prefix+srx.ri_id}}-{{item.fw_zone}} terse
+{% endfor %}

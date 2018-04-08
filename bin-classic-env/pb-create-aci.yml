@@ -1,0 +1,384 @@
+---
+# Playbook to create generic templates
+# Variable are pulled from a file in ./var-files
+#
+
+- name: Ansible generic configs
+  vars_files:
+    - ~/.vars-aci-credentials.yml
+    - "{{ varfile }}"
+  hosts: "{{ aci_env }}"
+
+  connection: local
+  gather_facts: no
+
+  # Empty lists used to create config for static ports
+  vars:
+    playbook_version: '1.0'
+    static_ports1: []
+    static_ports2: []
+    timestamp_start: "{{ lookup('pipe','date +%s') }}"
+
+  tasks:
+  #
+  # Compare playbook_version and input_vars_version
+  #
+  - name: 'Check input_vars_version' 
+    fail: msg="playbook_version and input_vars_version do not match. Maybe you used the wrong template file?"
+    when: playbook_version != input_vars_version
+
+  #
+  # create tenant
+  #
+  - name: Create a tenant in ACI
+    aci_tenant: 
+      tenant="{{ aci.tenant_name }}"
+      description="{{ aci.tenant_desc }}"
+      state=present
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    # no_log: true
+
+  #
+  # Create VRFs ####
+  # loop over aci.vrfs
+  #
+  - name: Create VRFs in ACI
+    aci_vrf:
+      vrf="{{ item.key }}"
+      description="{{ item.value }}"
+      tenant="{{ aci.tenant_name }}"
+      state=present
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_dict: "{{ aci.vrfs|default({}) }}"
+    no_log: true
+
+  #
+  # Create BDs without routing
+  # Loop over networks without an IP address and create bridge domains.
+  # Conditions: a name must be defined; vrf must be defined as a key in aci.vrfs; string "aci" must be in the devices list.
+  #
+  - name: Create BDs in ACI without routing
+    aci_bd:
+      bd="{{ item.name+gv_aci.bd_suffix }}"
+      description="{{ item.desc }} Subnet {{ item.ip_network }}/{{ item.ip_cidr }} VLAN {{ item.vlan_id }}"
+      vrf="{{ item.vrf }}"
+      tenant="{{ aci.tenant_name }}"
+      arp_flooding="yes"
+      l2_unknown_unicast="flood"
+      l3_unknown_multicast="flood"
+      multi_dest="bd-flood"
+      enable_routing="no"
+      state=present
+      host="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_items: "{{ networks|default([]) }}"
+    when:
+      - item.name is defined
+      - item.name != ''
+      - '"aci" in item.devices'
+      - item.vrf in aci.vrfs
+      - item.ip_aci is defined
+      - item.ip_aci == ''
+    # no_log: true
+
+  #
+  # Create BDs with routing
+  # Loop over networks with an IP address and create bridge domains.
+  # Conditions: a name must be defined; vrf must be defined as a key in aci.vrfs; string "aci" must be in the devices list.
+  #
+  - name: Create BDs in ACI with routing
+    aci_bd:
+      bd="{{ item.name+gv_aci.bd_suffix }}"
+      description="{{ item.desc }} Subnet {{ item.ip_network }}/{{ item.ip_cidr }} VLAN {{ item.vlan_id }}"
+      vrf="{{ item.vrf }}"
+      tenant="{{ aci.tenant_name }}"
+      state=present
+      host="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_items: "{{ networks|default([]) }}"
+    when:
+      - item.name is defined
+      - item.name != ''
+      - '"aci" in item.devices'
+      - item.vrf in aci.vrfs
+      - item.ip_aci is defined
+      - item.ip_aci != ''
+    # no_log: true
+
+  #
+  # Add Subnet to BD ###
+  # Add subnet to bridge domain when the default gateway is supposed to be on ACI.
+  # Use same conditions as for creating BD, otherwise we might add a subnet to non-existent BD.
+  #
+  - name: Create Subnets in Bds in ACI
+    aci_bd_subnet:
+      bd="{{ item.name+gv_aci.bd_suffix }}"
+      description="{{ item.desc }} Subnet {{ item.ip_network }}/{{ item.ip_cidr }} VLAN {{ item.vlan_id }}"
+      gateway="{{ item.ip_aci }}"
+      mask="{{ item.ip_cidr }}"
+      tenant="{{ aci.tenant_name }}" 
+      state=present 
+      host="{{ inventory_hostname }}" 
+      username="{{ apic_user }}" 
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_items: "{{ networks|default([]) }}"
+    when: 
+      - item.name is defined
+      - item.name != ''
+      - '"aci" in item.devices'
+      - item.vrf in aci.vrfs
+      - item.ip_aci is defined
+      - item.ip_aci != ''
+    # no_log: true
+
+  #
+  # Create APs 
+  # loop over aci.aps
+  #
+  - name: Create APs in ACI
+    aci_ap:
+      app_profile="{{ item.key }}"
+      descr="{{ item.value }}"
+      tenant="{{ aci.tenant_name }}"
+      state=present
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_dict: "{{ aci.aps|default({}) }}"
+    no_log: true
+
+  #
+  # Create EPGs ###
+  # Loop over networks and create EPGs
+  # Use same conditions as bd
+  #
+  - name: Create EPGs in ACI
+    aci_epg:
+      epg="{{ item.name+gv_aci.epg_suffix }}"
+      description="{{ item.desc }} Subnet {{ item.ip_network }}/{{ item.ip_cidr }} VLAN {{ item.vlan_id }}"
+      bridge_domain="{{ item.name+gv_aci.bd_suffix }}"
+      tenant="{{ aci.tenant_name }}"
+      app_profile="{{ item.ap }}"
+      state=present 
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_items: "{{ networks|default([]) }}"
+    when:
+      - item.name is defined
+      - item.name != ''
+      - '"aci" in item.devices'
+      - item.ap in aci.aps
+    no_log: true
+
+  #
+  # Map EPGs to the domains #
+  # Loop over networks, for now the domain is in gv_aci
+  - name: Map EPGs to domain
+    aci_epg_to_domain:
+      epg="{{ item.name+gv_aci.epg_suffix }}"
+      app_profile="{{ item.ap }}"
+      tenant="{{ aci.tenant_name }}"
+      domain_profile="{{ gv_aci.domain_name }}"
+      domain_type="{{ gv_aci.domain_type }}"
+      state=present 
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_items: "{{ networks|default([]) }}"
+    when:
+      - item.name is defined
+      - item.name != ''
+      - '"aci" in item.devices'
+      - item.ap in aci.aps
+    # no_log: true
+
+  #
+  # Map EPGs to the contract #
+  # Loop over networks, for now the contract is in gv_aci
+  - name: Map EPGs to contract
+    aci_epg_to_contract:
+      epg="{{ item.name+gv_aci.epg_suffix }}"
+      app_profile="{{ item.ap }}"
+      tenant="{{ aci.tenant_name }}"
+      contract="{{ gv_aci.tsm_consumer_contract }}"
+      contract_type="consumer"
+      state=present 
+      hostname="{{ inventory_hostname }}"
+      username="{{ apic_user }}"
+      password="{{ apic_pass }}"
+      use_proxy=no
+      validate_certs=no
+    with_items: "{{ networks|default([]) }}"
+    when:
+      - item.name is defined
+      - item.name != ''
+      - '"aci" in item.devices'
+      - item.ap in aci.aps
+      - item.tsm_contract is defined
+      - item.tsm_contract == 'yes'
+    # no_log: true
+
+  #
+  # Create a list of static ports, intermediate step ##
+  # Loop over networks and attached_devices
+  # output is [ { 'ap': bla, 'epg': bla, 'vlan_id': bla, 'ports': [bla,bla] }, .. ]
+  - name: Create static port list, static_ports1
+    set_fact:
+      static_ports1: "{{ static_ports1 }} + [ { 'ap': '{{ item.0.ap }}', 'epg': '{{ item.0.name+gv_aci.epg_suffix }}', 'vlan_id': '{{ item.0.vlan_id }}', 'ports': {{ gv_aci.ports_tdn[item.1] }} } ]"
+    with_subelements:
+      - "{{ networks|default([]) }}"
+      - "attached_devices"
+    when:
+        - item.0.name is defined
+        - item.0.name != ''
+        - '"aci" in item.0.devices'
+        - item.0.ap in aci.aps
+        - item.1 in gv_aci.ports_tdn
+
+  #
+  # Create a list of static ports, final step ##
+  # Loop over previous list and nested ports
+  # output is [ { 'ap': bla, 'epg': bla, 'vlan_id': bla, 'port': bla }, .. ]
+  - name: Create static port list, static_ports2
+    set_fact:
+      static_ports2: "{{ static_ports2 }} + [ { 'ap': '{{ item.0.ap }}', 'epg': '{{ item.0.epg }}', 'vlan_id': '{{ item.0.vlan_id }}', 'port': '{{ item.1 }}' } ]"
+    with_subelements:
+      - "{{ static_ports1|default([]) }}"
+      - "ports"
+
+  #
+  # Prepare JSON config to attached static ports ##
+  #
+  - name: Prepare JSON config to attach static ports
+    template:
+      src: jinja-templates/aci/aci-create-static-port.j2
+      dest: ../data-classic-env/output-files/aci-create-static-port-{{ item.1.ap }}-{{ item.1.epg }}-{{ item.0 }}.json
+    with_indexed_items: "{{ static_ports2|default([]) }}"
+    # no_log: true
+
+  #
+  # Submit JSON config for static ports to ACI REST ##
+  # Same loop as in preparing the config files
+  - name: Map static ports to EPGs
+    aci_rest:
+      path: "api/node/mo/uni/tn-{{aci.tenant_name}}/ap-{{item.1.ap}}/epg-{{item.1.epg}}.json"
+      method: post
+      src: ../data-classic-env/output-files/aci-create-static-port-{{ item.1.ap }}-{{ item.1.epg }}-{{ item.0 }}.json
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ apic_user }}"
+      password: "{{ apic_pass }}"
+      use_proxy: no
+      validate_certs: no
+    with_indexed_items: "{{ static_ports2|default([]) }}"
+    register: out
+
+  #
+  # Delete JSON configs for static ports
+  # Loop over static_ports2 list
+  #
+  - name: Delete JSON config for static ports
+    file:
+      path: ../data-classic-env/output-files/aci-create-static-port-{{ item.1.ap }}-{{ item.1.epg }}-{{ item.0 }}.json
+      state: absent
+    with_indexed_items: "{{ static_ports2|default([]) }}"
+    # no_log: true
+
+  #
+  # Prepare ACI L3Out JSON configs
+  # Loop over bgps list
+  #
+  - name: Prepare JSON config for ACI L3Outs
+    template:
+      src: jinja-templates/aci/aci-create-l3out.j2
+      dest: ../data-classic-env/output-files/aci-create-l3out-{{item.type}}.json
+    with_items: "{{ bgps|default([]) }}"
+    # no_log: true
+
+  #
+  # Submit JSON config for L3Out to ACI REST ##
+  # Same loop as in preparing the config files
+  - name: Submit JSON config for L3Out
+    aci_rest:
+      path: "api/node/mo/uni/tn-{{item.tenant}}/out-to_{{gv_general.firewalls[general.fw].shortname}}-{{gv_srx.ri_prefix+srx.ri_id}}_l3o.json"
+      method: post
+      src: ../data-classic-env/output-files/aci-create-l3out-{{item.type}}.json
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ apic_user }}"
+      password: "{{ apic_pass }}"
+      use_proxy: no
+      validate_certs: no
+    with_items: "{{ bgps|default([]) }}"
+    register: out
+
+  #
+  # Delete ACI L3Out JSON configs
+  # Loop over bgps list
+  #
+  - name: Delete JSON config for ACI L3Outs
+    file:
+      path: ../data-classic-env/output-files/aci-create-l3out-{{item.type}}.json
+      state: absent
+    with_items: "{{ bgps|default([]) }}"
+    # no_log: true
+
+  #
+  # Wait for a couple of seconds
+  #
+  - name: Pause to let ACI rebuilt the fault list
+    pause:
+      seconds: 10
+
+  #
+  # Get list of faults since beginning of this playbook, defined by timestamp_start
+  # 
+  - name: Get list of faults
+    aci_rest:
+      path: 'api/class/faultInst.json?query-target=self&order-by=faultInst.created|desc&query-target-filter=ge(faultInst.created,"{{ timestamp_start }}")'
+      method: get
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ apic_user }}"
+      password: "{{ apic_pass }}"
+      use_proxy: no
+      validate_certs: no
+    register: aci_fault_list
+
+  #
+  # Create fault list using template module
+  #
+  - name: Create fault list
+    template:
+      src: jinja-templates/aci/aci-fault-list.j2
+      dest: ../data-classic-env/output-files/aci-fault-list.txt
+    # no_log: true
+
+  #
+  # Print number of new faults and where you can find the list
+  #
+  - debug:
+      msg: "Liste der neuen ACI Fehler ({{ aci_fault_list.totalCount }}): < cat ../data-classic-env/output-files/aci-fault-list.txt >"
+
+# This is the end, my friend
+...

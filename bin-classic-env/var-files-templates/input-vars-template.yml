@@ -1,0 +1,221 @@
+---
+# YAML file to be used as input for different playbooks, for ACI, Loadbalancer and firewall
+# Default variables, do not change these unless you know what you're doing
+# Select the right environment, very important!!!!
+aci_env: "<your-host-from-inventory>"
+input_vars_version: '1.0'
+
+gv_general:
+  ip_ranges:
+    admin_psa:
+      - 1.1.1.0/24
+      - 1.1.2.0/25
+    fusion:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    internet:
+      - 0.0.0.0/0
+    transfer:
+      - 0.0.0.0/0
+  firewalls:
+  # copy the following section of you have more than 1 SRX firewall
+    <your-firewall-cluster-name>:
+      shortname: '<fw-shortname>'
+      dialog_intf: 'reth0'
+      aci_nodes:
+        - name: '<fw-name-node-1>'
+          aci_tdn: 'topology/pod-1/protpaths-2101-2102/pathep-[<your-tdn-node-1>]'
+          leafs:
+            - 'topology/pod-1/node-abcd'
+            - 'topology/pod-1/node-abcd'
+        - name: '<fw-name-node-2>'
+          aci_tdn: 'topology/pod-1/protpaths-2101-2102/pathep-[<your-tdn-node-2>]'
+          leafs:
+            - 'topology/pod-3/node-abcd'
+            - 'topology/pod-3/node-abcd'
+
+gv_aci:
+# adjust suffix and prefix definitions to fit your naming scheme
+  ap_suffix: "_ap"
+  ten_suffix: "_ten"
+  epg_suffix: "_epg"
+  bd_suffix: "_bd"
+  vrf_suffix: "_vrf"
+# fill in your default physical domain
+  domain_type: "phys"
+  domain_name: "phys_classic-static_dom"
+  tsm_consumer_contract: "tsm_prov_cont"
+# default port mode is trunk, called regular.
+  port_mode: "regular"
+  ports_tdn:
+# copy the following section for all devices that you would like to attach to your EPG
+    <fw-shortname>:
+      - 'topology/pod-1/protpaths-abcd-abcd/pathep-[<your-tdn-node-1>]'
+      - 'topology/pod-3/protpaths-abcd-abcd/pathep-[<your-tdn-node-1>]'
+
+gv_srx:
+# adjust suffix and prefix definitions to fit your naming scheme; ri ist routing instance
+  ri_prefix: "vs"
+  ri_suffix: "-vr"
+
+#########################################################################################################################
+#########################################################################################################################
+###############################                                                                    ######################
+###############################  Adjust values under this line to configure your environment       ######################
+###############################                                                                    ######################
+#########################################################################################################################
+#########################################################################################################################
+
+# general data
+# 'fw' is the cluster name, is used for lookup in gv_general.firewalls
+# ip_ranges internal and external are used for import and export filter on SRX, and discard routes for internet
+# If there are no networks defined comment these lines with a '#', including 'internal'  and 'internet'
+general:
+  doku: "<reference-to-add-documents>"
+  fw: "<firewall-name>"
+  ip_ranges:
+    internal:
+      - "<a.b.c.d/nn>"
+    internet:
+      - "<a.b.c.d/nn>"
+
+# Juniper SRX specific data
+# Limits are used for bandwidth policer on SRX. Reasonable combinations are "100m/14m", "150m/21m", "200m/28m", "250m/35m", "300m/42m"
+# If there are not static routes comment those lines with a '#', including the line with 'static_routes'
+# For ap and vrf change values appropriately and delete unused lines
+srx:
+  ri_id: "<xyz>"
+  bgp_routerid: "<a.b.c.d>"
+  bgp_as: "<nnnnn>"
+  bandwidth_limit: <100m>
+  burst_limit: <14m>
+  static_routes:
+    - prefix: '<a.b.c.d/nn>'
+      nexthop: '<a.b.c.d>'
+# ACI specific data
+# for 'aps' and 'vrfs', key (string before:) is used as name, value as description
+aci:
+  tenant_name: "<tenant-name>"
+  tenant_desc: "<project-description>, FW {{general.fw}}-{{gv_srx.ri_prefix+srx.ri_id}}, Doku {{general.doku}}"
+  aps:
+    dmz_ap: "AP for DMZ"
+    back_ap: "AP for Back"
+    sync_ap: "AP for Sync like heartbeat and SyCo"
+  vrfs:
+    std_vrf: "Standard VRF"
+    trfr_vrf: "Transfer VRF"
+
+###networks:
+###- name: "bla"                # name is used for EPG and BD name on ACI
+###  fw_zone: "bla00"           # Zone name on firewall
+###  desc: "blablabla"          # Description, used on ACI EGP and BD, watch out for special characters
+###  ip_network: "1.2.3.0"      # ip network used in this network
+###  ip_cidr: "24"              # prefix length for the ip network
+###  ip_fw: "1.2.3.1"           # IP of the firewall, if needed. Otherwise leave this empty ""
+###  ip_aci: "1.2.3.1"          # IP of the ACI bridge domain, if needed. Otherwise leave this empty ""
+###  ip_lb: "1.2.3.1"           # IP of the loadbalancer, if needed. Otherwise leave this empty ""
+###  devices: ["aci","fw","lb"] # Device where the network should be present, valid entries are "fw", "aci", "lb"
+###  vlan_id: "1131"            # VLAN ID
+###  attached_devices: ["fw-medc-quavir","ucs1","lb-nmvs"] # list of devices that should be attached to the EPG. See "gv_aci.ports_tdn" for details
+###  ap: "dmz_ap"               # Name of application profile on ACI. This value should be also present in "aci.aps". Used for EPG creation.
+###  vrf: "std_vrf"             # Name of VRF on ACI. This value should be also present in "aci.vrfs". Used for BD creation.
+###  tsm_contract: "no"         # Apply the default consumer contract for TSM, set to 'yes' for TSM networks
+###  # end of network definition
+
+# Fill in missing parameters, copy segment for more networks
+networks:
+- name: "<network-name>"
+  fw_zone: "<zone-name>"
+  desc: "<network description>"
+  ip_network: "<a.b.c.d>"
+  ip_cidr: "<nn>"
+  ip_fw: "<a.b.c.d>"
+  ip_lb: ""
+  ip_aci: ""
+  devices: ["aci","fw","lb"]
+  vlan_id: "wxyz"
+  attached_devices: ["<fw-shortname>","<other-devices>"]
+  ap: "<AP name>"
+  vrf: "<VRF name>"
+  tsm_contract: "no"
+  # end of network definition
+
+# Fill in missing parameters, uncomment (remove ###) BGP block that is needed
+# BGP parameter
+###bgps:
+###- type: internet
+###  fw_zone: <name-of-security-zone>
+###  tenant: <name-of-tenant>
+###  vrf: <name-of-vrf>
+###  domain: <name-of-domain>
+###  vlan_id: <wxyz>
+###  routerid_leaf_1: a.b.c.d
+###  routerid_leaf_2: a.b.c.e
+###  routerid_leaf_3: a.b.c.f
+###  routerid_leaf_4: a.b.c.g
+###  koppel_cidr: "/29"
+###  koppel_ip_leaf_1: h.i.j.k
+###  koppel_ip_leaf_2: h.i.j.l
+###  koppel_ip_leaf_3: h.i.j.m
+###  koppel_ip_leaf_4: h.i.j.n
+###  koppel_ip_fw: h.i.j.o
+###  as_number_fw: <nnnnn>
+###  as_number_aci: <nnnnn>
+###- type: admin
+###  fw_zone: <name-of-security-zone>
+###  tenant: <name-of-tenant>
+###  vrf: <name-of-vrf>
+###  domain: <name-of-domain>
+###  vlan_id: <wxyz>
+###  routerid_leaf_1: a.b.c.d
+###  routerid_leaf_2: a.b.c.e
+###  routerid_leaf_3: a.b.c.f
+###  routerid_leaf_4: a.b.c.g
+###  koppel_cidr: "/29"
+###  koppel_ip_leaf_1: h.i.j.k
+###  koppel_ip_leaf_2: h.i.j.l
+###  koppel_ip_leaf_3: h.i.j.m
+###  koppel_ip_leaf_4: h.i.j.n
+###  koppel_ip_fw: h.i.j.o
+###  as_number_fw: <nnnnn>
+###  as_number_aci: <nnnnn>
+###- type: fusion
+###  fw_zone: <name-of-security-zone>
+###  tenant: <name-of-tenant>
+###  vrf: <name-of-vrf>
+###  domain: <name-of-domain>
+###  vlan_id: <wxyz>
+###  routerid_leaf_1: a.b.c.d
+###  routerid_leaf_2: a.b.c.e
+###  routerid_leaf_3: a.b.c.f
+###  routerid_leaf_4: a.b.c.g
+###  koppel_cidr: "/29"
+###  koppel_ip_leaf_1: h.i.j.k
+###  koppel_ip_leaf_2: h.i.j.l
+###  koppel_ip_leaf_3: h.i.j.m
+###  koppel_ip_leaf_4: h.i.j.n
+###  koppel_ip_fw: h.i.j.o
+###  as_number_fw: <nnnnn>
+###  as_number_aci: <nnnnn>
+###- type: transfer
+###  fw_zone: <name-of-security-zone>
+###  tenant: <name-of-tenant>
+###  vrf: <name-of-vrf>
+###  domain: <name-of-domain>
+###  vlan_id: <wxyz>
+###  routerid_leaf_1: a.b.c.d
+###  routerid_leaf_2: a.b.c.e
+###  routerid_leaf_3: a.b.c.f
+###  routerid_leaf_4: a.b.c.g
+###  koppel_cidr: "/29"
+###  koppel_ip_leaf_1: h.i.j.k
+###  koppel_ip_leaf_2: h.i.j.l
+###  koppel_ip_leaf_3: h.i.j.m
+###  koppel_ip_leaf_4: h.i.j.n
+###  koppel_ip_fw: h.i.j.o
+###  as_number_fw: <nnnnn>
+###  as_number_aci: <nnnnn>
+
+# End of file
+...

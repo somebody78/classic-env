@@ -1,0 +1,11 @@
+{
+	"fvRsPathAtt": {
+		"attributes": {
+			"encap": "vlan-{{ item.1.vlan_id }}",
+			"mode": "{{ gv_aci.port_mode }}",
+			"tDn": "{{ item.1.port }}",
+			"status": "created"
+		},
+		"children": []
+	}
+}

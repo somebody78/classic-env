@@ -1,0 +1,86 @@
+README für Network Automation, data model and service deployment
+================================================================
+
+This repository contains files to describe a classic tenant in ACI and ansible playbooks, jinja templates, etc. to automatically deploy this tenant.
+This short version of the READM contains a manifest of included files and how to use the playbook.
+For details on how and when to use these playbooks please refer to README-details.
+
+Manifest:
+=========
+classic-env/
+    bin-classic-env/                        Directory for playbooks and template, version control for this branch is recommended
+        jinja-templates/                    Directory containing Jinja templates, grouped by platform
+            aci/
+                aci-create-l3out.j2         Jinja template to create an L3Out for firewall cluster
+                aci-create-static-port.j2   Jinja template to attach a static port to an EPG
+                aci-delete-l3out.j2         Jinja template to delete an L3Out for firewall cluster
+                aci-fault-list.j2           Jinja template to create a list of ACI faults
+            srx/
+                srx-create-context.j2       Jinja template to create a config file for an SRX routing context
+        var-files-templates/                Directory containing data model templates, aka var-files, for different environments
+        
+        pb-create-aci.yml                   Playbook to create a classic tenant in ACI
+        pb-delete-aci.yml                   Playbook to delete a classic tenant from ACI
+        pb-create-fw.yml                    Playbook to create a routing context for an classic tenant on a SRX firewall
+
+    data-classic-env/                       Directory for runtime data, version control is not important
+        output-files/                       Directory containing files created by ansible playbooks
+        var-files/                          Directory for data model files for specific projects
+
+    README                                  This file
+    README-details                          README file containing details on scenario and procedure
+    .vars-aci-credentials.yml               Template for ACI credentials file
+
+Usage:
+======
+Day-0 preparations:
+===================
+#1 Create your credentials file
+Copy the file ".vars-aci-credentials.yml" into your home directory and fill in "apic_user" and "apic_password".
+Make sure to adjust the file permissions that nobody else can read this file.
+
+#2 Create your Ansible inventory, if you haven't done that yet. Test your Ansible installation.
+
+#3 Prepare your data model(s), aka var-file template(s)
+Edit the file "classic-env/bin-classic-env/var-files-templates/var-file-template.yml" and fill in the specifics for your environment. 
+If you have multiple environments you can copy and edit this file to your needs.
+
+Service deployment:
+===================
+#1 Prepare var-file for project
+Copy the apropriate file from "classic-env/bin-classic-env/var-files-templates/" to "classic-env/data-classic-env/var-files" and rename it.
+Then edit this file according to the definitions for your project.
+
+#2 Deploy ACI
+Switch to the directory containing the ansible playbooks, "classic-env/bin-classic-env/"
+Run the playbook, provide the name of your projects var-file as an extra-var.
+    ansible-playbook [-i <your-inventory-file>] pb-create-aci.yml --extra-vars="varfile=../classic-env/data-classic-env/var-files/<your-var-file>.yml"
+
+Keep an eye on the Ansible messages
+
+#3 Check for faults caused by the deployment
+One of the last messages from Ansible should show you the number of faults created in the ACI since the start of the playbook and the path to the file containing some details.
+This file is overwritten everytime the playbook runs.
+
+#4 Deploy firewall config
+Switch to the directory containing the ansible playbooks, "classic-env/bin-classic-env/"
+Run the playbook, provide the name of your projects var-file as an extra-var.
+    ansible-playbook [-i <your-inventory-file>] pb-create-fw.yml --extra-vars="varfile=../classic-env/data-classic-env/var-files/<your-var-file>.yml"
+
+The file containing the firewall configuration will be written to "classic-env/data-classic-env/output-files".
+Copy and paste the content into your firewall as needed.
+
+Service deletion:
+=================
+#1 Prepare var-file for project
+Copy the apropriate file from "classic-env/bin-classic-env/var-files-templates/" to "classic-env/data-classic-env/var-files" and rename it.
+Then edit this file according to the definitions for your project. If you have the var-file used for creation available you can use that.
+Just make sure that the format of the var-file is compatible with the current playbook and the ACI configuration wasn't changed manually.
+
+#2 Run the playbook
+Switch to the directory containing the ansible playbooks, "classic-env/bin-classic-env/"
+Run the playbook, provide the name of your projects var-file as an extra-var.
+    ansible-playbook [-i <your-inventory-file>] pb-delete-aci.yml --extra-vars="varfile=../classic-env/data-classic-env/var-files/<your-var-file>.yml"
+
+Keep an eye on the Ansible messages
+

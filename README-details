@@ -1,0 +1,289 @@
+README-details für Network Automation, data model and service deployment
+========================================================================
+
+This repository contains files to describe a classic tenant in ACI and ansible playbooks, jinja templates, etc. to automatically deploy this tenant.
+This file contains details about the scenario this playbook is designed for and the underlying data model and playbooks.
+For an overview of the contained files and usage please refer to the READM file.
+
+Within Cisco ACI several objects exists to describe aspects an functions of a network environment.
+These objects can be used to built simple or complex network infrastructure depending on your needs.
+If you think of the objects as Lego bricks you can use them to built a big castle with watchtowers, a mansion witch balcony and terraces or a simple hut.
+A classic tenant in our environment is a house with a defined footprint and you can only choose the number of floors and the number and kind of entrances.
+Here is a brief introduction of the most important ACI objects. For details please refer to the Cisco documentation (www.cisco.com):
+------
+Tenant
+A tenant groups subseqeuent objects and helps to organize the structure. Objects within one tenant can not use objects in our tenants. There are exceptions, though.
+A tenant can contain several VRFs and Application Profiles.
+------
+VRF
+A means of routing virtualization, comparable to a VRF on a traditional Cisco router. A VRF can contain one or more Bridge Domains.
+------
+Bridge Domain (BD)
+A Bridge Domain controls how broad- and multicasts are transported. It is comparable to a VLAN in traditional networks, at least in certain aspects.
+A BD can contain one or more EPGs.
+------
+Application Profile
+An Application Profile (AP) can be used to organize EPGs and it contain one or more EPGs. 
+------
+Endpoint Group
+Endpoints, servers or other devices connected to the network, can be organized in Endpoints Groups. You can apply contracts to EPG to control who and what can be accessed, roughly comparable to an access list.
+Different methods can be used to assign endpoint to an EPG.
+An EPG can only belong to one AP and to one BD, but I can contain several Domains.
+------
+Domain
+A domain describes which which servers can be used and a valid VLAN to connect to these endpoints.
+There are physical domains to cover bare-metal server and virtual domains for Openstack, VMWare and Microsoft based virtual machines.
+------
+L3 Out
+L3Out, aka "External routed network" is a way to connected routing devices to the ACI fabric. Within an L3Out you can use static routes or dynamic routing protocols like BGP, OSPF and EIGRP.
+
+Definition of a classic tenant:
+-------------------------------
+A classic tenant contains:
+- typically 1 VRF, sometimes 2-3 VRFs
+- one or more APs, containing one or more EPGs
+- one or more BD/EPG combinations, later referred to as network, for servers. Every BD does only contain exactly 1 EPG. This BD/EPG combination is comparable to a VLAN in traditional networks. This approach is often referred to as "network centric".
+- every EPG contains the standard physical domain and is attached to one AP. It can contain and one or more servers using a specific VLAN ID as encapsulation.
+- 1 firewall stitched into the BD/EPG networks, acting as default gateway for the connected servers. For connections to the outside world the firewall is connected through L3Outs using BGP to various other service tenants.
+  Depending on the requirements the firewall might not be connected to all of these tenants.
+  These service tenants are:
+  - Internet tenant: to provide connectivity to the internet
+  - Admin tenant:  to provide connectivity to an internal MPLS VPN primarily used for management and admin access
+  - Fusion tenant: to provide connectivity to an internet MPLS VPN to connect to other classic tenants environments
+  - Transfer tenant: to provide connectivity to an internet MPLS VPN belonging to this customer or project
+- every firewall is an active/standby cluster; every node is connected through an LACP port-channel to 2 leaf switches in a vPC cluster.
+- for every L3Out there are 4 BGP sessions; from the active FW node to each of the 4 leaf switches where a firewall node is connected.
+- every firewall is configured with its own AS number
+
+          |-------------------------------------------------------|
+          | Tenant                                                |
+          | |---------------------------------------------------| |
+          | | VRF 1                                             | |
+          | |  |---------------------------------(network 1)--| | |
+          | |  | BD 1                                         | | |
+          | |  |  |-----------------------------------------| | | |
+          | |  |  | EPG 1 (->AP, ->VLAN)                    |_|_|_|__                   /----- Internet Tenant
+          | |  |  |_________________________________________| | | |  \                 /
+          | |  |______________________________________________| | |   \               /
+          | |                                                   | |    \             /  /----- Admin Tenant
+          | |  |---------------------------------(network 2)--| | |     \           /  /
+          | |  | BD 2                                         | | |      \         /  /
+          | |  |  |-----------------------------------------| | | |       \       /  /
+          | |  |  | EPG 2 (->AP, ->VLAN)                    |_|_|_|________\ Firewall  
+          | |  |  |_________________________________________| | | |         /     \  \
+          | |  |______________________________________________| | |        /       \  \
+          | |                                                   | |       /         \  \
+          | |                                                   | |      /           \  \----- Fusion Tenant
+          | |  |---------------------------------(network n)--| | |     /             \
+          | |  | BD n                                         | | |    /               \
+          | |  |  |-----------------------------------------| | | |   /                 \----- Transfer Tenant
+          | |  |  | EPG n (->AP, ->VLAN)                    |_|_|_|__/
+          | |  |  |_________________________________________| | | |
+          | |  |______________________________________________| | |
+          | |___________________________________________________| |
+          |                                                       |
+          |_______________________________________________________|
+
+
+Data model:
+===========
+The data model is a single YAML file that contains all information to describe this classic tenant.
+Although some of the variables are more of general nature and could be placed in a group- or host-var files I found it easier for the beginning to keep them all in one place.
+The file is organized in different groups, namely general variables describing the ACI environment and attached firewalls and other devices, and tenant specific informations.
+The following description is just an overview of the data in the YAML file. For details refer to the data model template file. 
+General variables:
+gv_general:
+- ip_ranges: used to defined import prefix filter for BGP on the firewall
+- firewalls: a dict containing information about firewalls connected to the ACI fabric.
+gv_aci:
+- general variables regarding the ACI, especially prefixes and suffixes to derive objects names from the information provided by the user
+- information about devices attached to the ACI fabric
+gv_srx:
+- general variables regarding the ACI, especially prefixes and suffixes to derive objects names from the information provided by the user
+
+Tenant specific variables:
+srx:
+- name of the firewall to to be used for this tenant
+- ID for the routing instance, if different routing instances are available on this firewall
+
+aci:
+- Name and description for the tenant
+- a dict with VRF names as keys and VRF desriptions as values
+- a dict with AP names as keys and AP desriptions as values
+- a list of networks, each entry is a dict containing several attributes to define a network (= BD/EPG set). You can add items to this list as needed.
+- a list of bgps, each entry is a dict containing several attributes to define a BGP connection to a service tenant. You can only use the L3Outs present in the template. If you do not use a specific connection mark this section with comments (#).
+
+Definition of a network:
+Each network is defined by a dict with attributes as keys:
+- name: "<network-name>"
+    The name for the BD and EPG will be derived from this name by adding different suffixes for the respective objects
+
+- fw_zone: "<zone-name>"
+    The name that will be used for the firewall zone
+    
+- desc: "<network description>"
+    Description will be used for BD and EPG, IP network and VLAN ID will be added automatically to the description
+    
+- ip_network: "<a.b.c.d>"
+    The IP network used for this network
+    
+- ip_cidr: "<nn>"
+    The netmask length for this network
+    
+- ip_fw: "<a.b.c.d>"
+    The IP address for the firewall interface in this network, leave empty if not needed
+    
+- ip_lb: ""
+    The IP address for the loadbalancer interface in this network, leave empty if not needed; not supported yet
+    
+- ip_aci: ""
+    The IP address for the ACI BD subnet, leave empty if not needed
+    
+- devices: ["aci","fw","lb"]
+    A list of devices where this network should be present. This affects if the network is configured on the ACI or Firewall. lb for loadbalancer is not supported yet.
+    
+- vlan_id: "wxyz"
+    VLAN ID to be used to connect external devices, like firewall or server, to the ACI fabric.
+    
+- attached_devices: ["fw-mpdc-quavir","lb-nmvs1"]
+    Devices that should be attached to the EPG. The names here are a reference to the list of ports in the general variables section.
+    
+- ap: "<AP name>"
+    Name of the AP the EPG should be attached to, this name must be present in the APs dict
+    
+- vrf: "std_vrf"
+    Name of the VRF the BD should be attached to, this name must be present in the VRFs dict
+    
+- tsm_contract: "no"
+    Attach a contract for TSM backup to this EPG; for classic tenants always "no"
+    
+Definition of a L3Out (bgps):
+Each L3Out using BGP is defined by a dict with attributes as keys, using the connection to the internet tenant as an example:
+- type: internet
+    Type of this connection. It can "internet", "admin", "fusion", "transfer" or "extranet"
+
+- fw_zone: untrust00
+    Name of the firewall zone for this L3Out
+    
+- tenant: z_internet_ten
+    Name of the tenant where this L3Out is established
+    
+- vrf: std_vrf
+    Name of the VRF where  this L3Out is established
+    
+- domain: l3_l3o-front_dom
+    Name of the domain used for this L3Out, important for the VLAN ID
+    
+- vlan_id: <wxyz>
+    VLAN ID to be used for this L3Out. On the ACI leafs SVIs will be used to connect to the firewall
+    
+- routerid_leaf_1: <a.b.c.d>
+- routerid_leaf_2: <a.b.c.d>
+- routerid_leaf_3: <a.b.c.d>
+- routerid_leaf_4: <a.b.c.d>
+    ACI Router IDs for this specific VRF
+
+- koppel_cidr: "/29"
+- koppel_ip_leaf_1: <a.b.c.d>
+- koppel_ip_leaf_2: <a.b.c.d>
+- koppel_ip_leaf_3: <a.b.c.d>
+- koppel_ip_leaf_4: <a.b.c.d>
+- koppel_ip_fw: <a.b.c.d>
+    Netmask length, leaf switch IP addresses and firewall IP address
+    
+- as_number_fw: <nnnnn>
+    AS number Firewall
+    
+- as_number_aci: <nnnnn>
+    AS number ACI tenant+VRF
+
+
+
+ACI Service deployment:
+=======================
+The classic tenant described in the data model is is deployed through an ansible playbook. In the playbook Ansible ACI modules are used to configure the different ACI objects.
+This is a short overview of modules and tasks. For mor details please refer to the comments within the playbook.
+- Setting the timestamp_start
+    Setting to variable "timestamp_start" to the current unix timestamp when the playbook is started. This timestamp is used later.
+
+- Check input_vars_version
+    Compares the "playbook_version", a string defined in the playbook, with the "input_vars_version" defined in the data model to make sure that you do not start the playbook with an old and incompatible version of the data model.
+
+- Create a tenant in ACI
+    Create a tenant using the aci_tenant module
+    
+- Create VRFs in ACI
+    Create the VRFs defined in the vrfs dict
+    
+- Create BDs in ACI without routing
+    Create the BDs defined in the networks list using the aci_bd module if certain conditions are met. Among other things:
+    "ip_aci" is empty; Some BD attributes in this task are hardcoded and values are optimized for Layer-2 BDs, i.e. no subnet is attached.
+    "devices" must contain "aci"; The attribute "devices" contains a list of devices where this network should be present.
+    "vrf" must be key in the vrfs dict
+    
+- Create BDs in ACI with routing
+    Create the BDs defined in the networks list using the aci_bd module if certain conditions are met. Among other things:
+    "ip_aci" is NOT empty; Some BD attributes in this task are hardcoded and values are optimized for Layer-3 BDs, i.e. a subnet is attached.
+    "devices" must contain "aci"; The attribute "devices" contains a list of devices where this network should be present.
+    "vrf" must be key in the vrfs dict
+
+- Create Subnets in Bds in ACI
+    Create a subnet in this BD aci_bd_subnet module if certain conditions are met, among other things:
+    "ip_aci" is NOT empty; a subnet should be attached to this BD
+    "devices" must contain "aci"; The attribute "devices" contains a list of devices where this network should be present.
+    "vrf" must be key in the vrfs dict
+
+- Create APs in ACI
+    Create the APs defined in the aps dict
+    
+- Create EPGs in ACI
+    Create the EPGs defined in the networks list using the aci_epg module if certain conditions are met. Among other things:
+    "devices" must contain "aci"; The attribute "devices" contains a list of devices where this network should be present.
+    "ap" must be key in the aps dict
+
+- Map EPGs to domain
+    The standard domain, defined in the general variables section, is attached to every domain.
+
+- Map EPGs to contract
+    The default consumer contract for TSM backup is attached to this EPG, only if "tsm_contract"="yes"
+
+- Create static port list, static_ports1
+- Create static port list, static_ports2
+    The attribute "attached_devices" contains a list of strings as references to port lists in the general variables section. 
+    To compile a list of needed ports based on these references 2 intermediary steps are necessary to built a usable data structure within Ansible.
+
+- Prepare JSON config to attach static ports
+    As there is no module to attach static ports to an EPG in Ansible 2.3 available the generic aci_rest module is used. This requires to build a JSON file for every attached port based on a Jinja template.
+    
+- Map static ports to EPGs
+    The previous build JSON files are applied to the ACI fabric used the aci_rest module.
+    
+- Delete JSON config for static ports
+    The previous build JSON files are deleted. Just to keep the filesystem clean.
+
+- Prepare JSON config for ACI L3Outs
+    As there is no module to create an L3Outin Ansible 2.3 available the generic aci_rest module is used. 
+    This requires to build a JSON file for every L3Out based on a Jinja template.
+    
+- Submit JSON config for L3Out
+    The previous build JSON files are applied to the ACI fabric used the aci_rest module.
+    
+- Delete JSON config for ACI L3Outs
+    The previous build JSON files are deleted. Just to keep the filesystem clean.
+    
+- Get list of faults
+    Get a list of faults created after "timestamp_start" from the ACI fabric with the aci_rest module. If any of the configurations in the previous modules caused a fault it should show up here.
+    
+- Create fault list
+    Create a short overview of faults created during this run of the playbook using a Jinja template.
+
+
+
+Firewall Service deployment:
+============================
+
+- Prepare SRX config file
+    Prepare a config file to copy-and-paste into the firewall from a Jinja template.
+    Automatic deployment with Ansible modules is not implemented yet. 
+    This config only covers the network part, i.e. configuration for the routing instance, interfaces, security zones and BGP parameters. 
+    It does not cover policies and other security related topics.
