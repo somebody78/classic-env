@@ -73,7 +73,7 @@ Copy and paste the content into your firewall as needed.
 Service deletion:
 =================
 #1 Prepare var-file for project
-Copy the apropriate file from "classic-env/bin-classic-env/var-files-templates/" to "classic-env/data-classic-env/var-files" and rename it.
+Copy the appropriate file from "classic-env/bin-classic-env/var-files-templates/" to "classic-env/data-classic-env/var-files" and rename it.
 Then edit this file according to the definitions for your project. If you have the var-file used for creation available you can use that.
 Just make sure that the format of the var-file is compatible with the current playbook and the ACI configuration wasn't changed manually.
 

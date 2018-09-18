@@ -32,7 +32,7 @@
     template:
       src: jinja-templates/srx/srx-create-context.j2
       dest: ../data-classic-env/output-files/srx-create-context-{{general.fw}}-{{gv_srx.ri_prefix+srx.ri_id}}.txt
-    # no_log: true
+    no_log: true
 
 # This is the end, my friend
 ...

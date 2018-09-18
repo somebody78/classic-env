@@ -17,7 +17,6 @@
     playbook_version: '1.0'
     static_ports1: []
     static_ports2: []
-    timestamp_start: "{{ lookup('pipe','date +%s') }}"
 
   tasks:
   #
@@ -26,6 +25,13 @@
   - name: 'Check input_vars_version' 
     fail: msg="playbook_version and input_vars_version do not match. Maybe you used the wrong template file?"
     when: playbook_version != input_vars_version
+
+  #
+  # Get timestamp to check for faults later, subtract 10 minutes right away to allow for time difference between ansible server and APIC
+  #
+  - name: Get timestamp as string
+    command: "date -d -10min +%Y-%m-%dT%H:%M:%S"
+    register: timestamp_start
 
   #
   # create tenant
@@ -90,7 +96,7 @@
       - item.vrf in aci.vrfs
       - item.ip_aci is defined
       - item.ip_aci == ''
-    # no_log: true
+    no_log: true
 
   #
   # Create BDs with routing
@@ -117,7 +123,7 @@
       - item.vrf in aci.vrfs
       - item.ip_aci is defined
       - item.ip_aci != ''
-    # no_log: true
+    no_log: true
 
   #
   # Add Subnet to BD ###
@@ -145,7 +151,7 @@
       - item.vrf in aci.vrfs
       - item.ip_aci is defined
       - item.ip_aci != ''
-    # no_log: true
+    no_log: true
 
   #
   # Create APs 
@@ -213,7 +219,7 @@
       - item.name != ''
       - '"aci" in item.devices'
       - item.ap in aci.aps
-    # no_log: true
+    no_log: true
 
   #
   # Map EPGs to the contract #
@@ -239,7 +245,7 @@
       - item.ap in aci.aps
       - item.tsm_contract is defined
       - item.tsm_contract == 'yes'
-    # no_log: true
+    no_log: true
 
   #
   # Create a list of static ports, intermediate step ##
@@ -277,7 +283,7 @@
       src: jinja-templates/aci/aci-create-static-port.j2
       dest: ../data-classic-env/output-files/aci-create-static-port-{{ item.1.ap }}-{{ item.1.epg }}-{{ item.0 }}.json
     with_indexed_items: "{{ static_ports2|default([]) }}"
-    # no_log: true
+    no_log: true
 
   #
   # Submit JSON config for static ports to ACI REST ##
@@ -304,7 +310,7 @@
       path: ../data-classic-env/output-files/aci-create-static-port-{{ item.1.ap }}-{{ item.1.epg }}-{{ item.0 }}.json
       state: absent
     with_indexed_items: "{{ static_ports2|default([]) }}"
-    # no_log: true
+    no_log: true
 
   #
   # Prepare ACI L3Out JSON configs
@@ -315,7 +321,7 @@
       src: jinja-templates/aci/aci-create-l3out.j2
       dest: ../data-classic-env/output-files/aci-create-l3out-{{item.type}}.json
     with_items: "{{ bgps|default([]) }}"
-    # no_log: true
+    no_log: true
 
   #
   # Submit JSON config for L3Out to ACI REST ##
@@ -342,7 +348,7 @@
       path: ../data-classic-env/output-files/aci-create-l3out-{{item.type}}.json
       state: absent
     with_items: "{{ bgps|default([]) }}"
-    # no_log: true
+    no_log: true
 
   #
   # Wait for a couple of seconds
@@ -354,31 +360,61 @@
   #
   # Get list of faults since beginning of this playbook, defined by timestamp_start
   # 
-  - name: Get list of faults
+  - name: List of fault records
     aci_rest:
-      path: 'api/class/faultInst.json?query-target=self&order-by=faultInst.created|desc&query-target-filter=ge(faultInst.created,"{{ timestamp_start }}")'
+      path: 'api/class/faultRecord.json?query-target-filter=and(gt(faultRecord.created,"{{ timestamp_start.stdout }}"))&order-by=faultRecord.created'
       method: get
       hostname: "{{ inventory_hostname }}"
       username: "{{ apic_user }}"
       password: "{{ apic_pass }}"
       use_proxy: no
       validate_certs: no
-    register: aci_fault_list
+    register: aci_faultrecords_list
 
   #
   # Create fault list using template module
   #
-  - name: Create fault list
+  - name: Create file with faultRecord list
     template:
-      src: jinja-templates/aci/aci-fault-list.j2
-      dest: ../data-classic-env/output-files/aci-fault-list.txt
-    # no_log: true
+      src: jinja-templates/aci/aci-faultrecord-list.j2
+      dest: ../data-classic-env/output-files/aci-faultrecord-list.txt
+    no_log: true
 
   #
-  # Print number of new faults and where you can find the list
+  # Check output
   #
   - debug:
-      msg: "Liste der neuen ACI Fehler ({{ aci_fault_list.totalCount }}): < cat ../data-classic-env/output-files/aci-fault-list.txt >"
+      msg: "List of ACI fault records ({{ aci_faultrecords_list.totalCount }}): < cat ../data-classic-env/output-files/aci-faultrecord-list.txt >"
+
+  #
+  # Get list of faults since beginning of this playbook, defined by timestamp_start
+  # 
+  - name: List of fault insts
+    aci_rest:
+      path: 'api/class/faultInst.json?query-target-filter=and(gt(faultInst.created,"{{ timestamp_start.stdout }}"))&order-by=faultInst.created'
+      method: get
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ apic_user }}"
+      password: "{{ apic_pass }}"
+      use_proxy: no
+      validate_certs: no
+    register: aci_faultinst_list
+
+  #
+  # Create fault list using template module
+  #
+  - name: Create file with faultInst list
+    template:
+      src: jinja-templates/aci/aci-faultinst-list.j2
+      dest: ../data-classic-env/output-files/aci-faultinst-list.txt
+    no_log: true
+
+  #
+  # Check output
+  #
+  - debug:
+      msg: "List of ACI fault instances ({{ aci_faultinst_list.totalCount }}): < cat ../data-classic-env/output-files/aci-faultinst-list.txt >"
+
 
 # This is the end, my friend
 ...

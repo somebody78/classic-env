@@ -1,0 +1,14 @@
+#jinja2: lstrip_blocks: True
+{# ACI fault list, version 0.1 #}
+!!
+!!!!!!!!! ACI fault inst since {{ timestamp_start.stdout }}
+!!
+{% for item in aci_faultinst_list.imdata|default({}) %}
+  code:     {{ item.faultInst.attributes.code }}
+  created:  {{ item.faultInst.attributes.created }}
+  dn:       {{ item.faultInst.attributes.dn }}
+  descr:    {{ item.faultInst.attributes.descr }}
+  subject:  {{ item.faultInst.attributes.subject }}
+  severity: {{ item.faultInst.attributes.severity }}
+
+{% endfor %}

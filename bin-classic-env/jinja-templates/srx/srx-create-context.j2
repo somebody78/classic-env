@@ -16,6 +16,18 @@ show interfaces {{gv_general.firewalls[general.fw].dialog_intf}}.{{item.vlan_id}
 {% endfor %}
 
 
+{% for item in networks|default([]) %}
+  {% if 'fw' in item.devices %}
+show route table {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}.inet.0 {{item.ip_fw}}/{{item.ip_cidr}}
+  {% endif %}
+{% endfor %}
+{% for item in bgps|default([]) %}
+show route table {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}.inet.0 {{item.koppel_ip_fw+item.koppel_cidr}}
+{% endfor %}
+{% for item in srx.static_routes|default([]) %}
+show route table {{gv_srx.ri_prefix+srx.ri_id+gv_srx.ri_suffix}}.inet.0 {{item.prefix}}
+{% endfor %}
+
 !!!!!!!!! Bandwidth policer and filter
 !!
 set firewall policer {{gv_srx.ri_prefix+srx.ri_id}}-bandwidth-policer if-exceeding bandwidth-limit {{srx.bandwidth_limit}}
