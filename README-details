@@ -3,7 +3,7 @@ README-details für Network Automation, data model and service deployment
 
 This repository contains files to describe a classic tenant in ACI and ansible playbooks, jinja templates, etc. to automatically deploy this tenant.
 This file contains details about the scenario this playbook is designed for and the underlying data model and playbooks.
-For an overview of the contained files and usage please refer to the READM file.
+For an overview of the contained files and usage please refer to the README file.
 
 Within Cisco ACI several objects exists to describe aspects an functions of a network environment.
 These objects can be used to built simple or complex network infrastructure depending on your needs.
