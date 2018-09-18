@@ -15,6 +15,9 @@ Also there are some BD attributes hardcoded in the playbook "pb-create-aci.yml" 
 
 The jinja template to create the SRX firewall config is also based on some guidelines specific for our environment. You probably need to adjust this template to match your requirements.
 
+These playbooks are used with Ansible 2.4. 
+In Ansible 2.5 the usage of loops was changed. If you have any strange problems please keep that in mind.
+
 Manifest:
 =========
 classic-env/
