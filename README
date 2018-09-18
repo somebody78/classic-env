@@ -5,6 +5,16 @@ This repository contains files to describe a classic tenant in ACI and ansible p
 This short version of the READM contains a manifest of included files and how to use the playbook.
 For details on how and when to use these playbooks please refer to README-details.
 
+WARNING !!!!!
+Some of the functions and templates are very specific to our environment.
+The jinja templates to create and delete L3Outs are especially fine tuned to our setup with an ACI Multi-Pod environment. 
+Review the jinja templates and the created files before deploying them the first time.
+You can disable the deployment with aci_rest and the deletion of the config files on the playbook "pb-create-aci.yml" to see what is sent to the APIC.
+If this does not match your environment you will get some strange error messages, either the playbook will fail or later in the APIC.
+Also there are some BD attributes hardcoded in the playbook "pb-create-aci.yml" for BD with and without subnets. Take a look at those parameters to see if they match your expectations.
+
+The jinja template to create the SRX firewall config is also based on some guidelines specific for our environment. You probably need to adjust this template to match your requirements.
+
 Manifest:
 =========
 classic-env/
@@ -14,7 +24,10 @@ classic-env/
                 aci-create-l3out.j2         Jinja template to create an L3Out for firewall cluster
                 aci-create-static-port.j2   Jinja template to attach a static port to an EPG
                 aci-delete-l3out.j2         Jinja template to delete an L3Out for firewall cluster
-                aci-fault-list.j2           Jinja template to create a list of ACI faults
+                aci-fault-list.j2           Jinja template to create a list of ACI faults, deprecated
+				aci-faultinst-list.j2       Jinja template to create a list of ACI instances
+				aci-faultrecord-list.j2     Jinja template to create a list of ACI records
+				
             srx/
                 srx-create-context.j2       Jinja template to create a config file for an SRX routing context
         var-files-templates/                Directory containing data model templates, aka var-files, for different environments
