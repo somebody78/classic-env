@@ -19,7 +19,7 @@ gv_general:
     transfer:
       - 0.0.0.0/0
   firewalls:
-  # copy the following section of you have more than 1 SRX firewall
+  # copy the following section if you have more than 1 SRX firewall
     <your-firewall-cluster-name>:
       shortname: '<fw-shortname>'
       dialog_intf: 'reth0'
