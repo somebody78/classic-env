@@ -1,5 +1,7 @@
-README für Network Automation, data model and service deployment
+README fÃ¼r Network Automation, data model and service deployment
 ================================================================
+
+These playbooks and scripts are designed for Ansible 2.4. For a version compatible with Ansible 2.7 and added functionality check out the repository <classic-env-2.7>
 
 This repository contains files to describe a classic tenant in ACI and ansible playbooks, jinja templates, etc. to automatically deploy this tenant.
 This short version of the READM contains a manifest of included files and how to use the playbook.
